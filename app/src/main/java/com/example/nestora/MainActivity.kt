@@ -67,6 +67,23 @@ fun NestoraApp() {
         composable("home") {
             HomePage(navController)
         }
+
+        composable(
+            route = "hotelDetails/{name}/{location}/{price}/{rating}"
+        ) { backStackEntry ->
+            val name = backStackEntry.arguments?.getString("name") ?: ""
+            val location = backStackEntry.arguments?.getString("location") ?: ""
+            val price = backStackEntry.arguments?.getString("price") ?: ""
+            val rating = backStackEntry.arguments?.getString("rating") ?: ""
+
+            HotelDetailsScreen(
+                navController = navController,
+                hotelName = name,
+                hotelLocation = location,
+                hotelPrice = price,
+                hotelRating = rating
+            )
+        }
     }
 }
 
