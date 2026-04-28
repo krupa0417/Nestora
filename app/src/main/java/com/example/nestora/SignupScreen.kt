@@ -15,19 +15,26 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.UserProfileChangeRequest
 
 @Composable
 fun SignupScreen(navController: NavHostController) {
+
+    val auth = FirebaseAuth.getInstance()
+
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var signupMessage by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    colors = listOf(
+                    listOf(
                         Color(0xFF0D47A1),
                         Color(0xFF42A5F5),
                         Color(0xFFE3F2FD)
@@ -38,12 +45,22 @@ fun SignupScreen(navController: NavHostController) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+
         Text(
             text = "Create Account",
             fontSize = 32.sp,
             color = Color.White,
             modifier = Modifier.padding(bottom = 24.dp)
         )
+
+        if (signupMessage.isNotEmpty()) {
+            Text(
+                text = signupMessage,
+                fontSize = 14.sp,
+                color = Color.White,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+        }
 
         BasicTextField(
             value = name,
@@ -81,14 +98,46 @@ fun SignupScreen(navController: NavHostController) {
 
         Button(
             onClick = {
-                navController.navigate("home")
+                if (name.isBlank() || email.isBlank() || password.isBlank()) {
+                    signupMessage = "Please fill all fields."
+                    return@Button
+                }
+
+                if (password.length < 6) {
+                    signupMessage = "Password must be at least 6 characters."
+                    return@Button
+                }
+
+                isLoading = true
+
+                auth.createUserWithEmailAndPassword(email, password)
+                    .addOnCompleteListener { task ->
+                        isLoading = false
+
+                        if (task.isSuccessful) {
+                            val user = auth.currentUser
+
+                            val profileUpdates = UserProfileChangeRequest.Builder()
+                                .setDisplayName(name)
+                                .build()
+
+                            user?.updateProfile(profileUpdates)
+                                ?.addOnCompleteListener {
+                                    signupMessage = "Account created successfully."
+                                    navController.navigate("home")
+                                }
+                        } else {
+                            signupMessage = task.exception?.message ?: "Signup failed."
+                        }
+                    }
             },
             colors = ButtonDefaults.buttonColors(
                 containerColor = Color(0xFF1565C0)
             ),
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isLoading
         ) {
-            Text("Sign Up")
+            Text(if (isLoading) "Creating Account..." else "Sign Up")
         }
 
         Spacer(modifier = Modifier.height(12.dp))
