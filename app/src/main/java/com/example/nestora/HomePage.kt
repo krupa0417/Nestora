@@ -50,6 +50,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 
 data class Hotel(
     val name: String,
@@ -62,10 +70,76 @@ data class Hotel(
 @Composable
 fun HomePage(navController: NavHostController) {
 
+    val context = LocalContext.current
+
     var location by remember { mutableStateOf("") }
     var checkIn by remember { mutableStateOf("") }
     var checkOut by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("") }
+    var showPermissionDialog by remember { mutableStateOf(false) }
+
+    val locationPermissionLauncher =
+        rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestPermission()
+        ) { isGranted ->
+            if (isGranted) {
+                message = "Location permission granted. You can now use location features."
+            } else {
+                message = "Location permission denied."
+            }
+        }
+
+    fun requestLocationPermission() {
+        val permissionStatus = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        )
+
+        if (permissionStatus == PackageManager.PERMISSION_GRANTED) {
+            message = "Location permission already granted."
+        } else {
+            showPermissionDialog = true
+        }
+    }
+
+    if (showPermissionDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showPermissionDialog = false
+            },
+            title = {
+                Text("Location Permission")
+            },
+            text = {
+                Text("Nestora needs location permission to help find hotels near your current area.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showPermissionDialog = false
+                        locationPermissionLauncher.launch(
+                            Manifest.permission.ACCESS_FINE_LOCATION
+                        )
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF1565C0)
+                    )
+                ) {
+                    Text("Allow")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showPermissionDialog = false
+                        message = "Location permission was not accepted."
+                    }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     val allHotels = listOf(
         Hotel("Grand Palace Hotel", "London", "£120/night", "4.5"),
@@ -131,6 +205,9 @@ fun HomePage(navController: NavHostController) {
                     onCheckInChange = { checkIn = it },
                     checkOut = checkOut,
                     onCheckOutChange = { checkOut = it },
+                    onLocationClick = {
+                        requestLocationPermission()
+                    },
                     onSearchClick = {
                         filteredHotels.clear()
 
@@ -184,10 +261,6 @@ fun HomePage(navController: NavHostController) {
                         )
                     }
                 )
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(16.dp))
             }
         }
     }
@@ -271,6 +344,7 @@ fun SearchCard(
     onCheckInChange: (String) -> Unit,
     checkOut: String,
     onCheckOutChange: (String) -> Unit,
+    onLocationClick: () -> Unit,
     onSearchClick: () -> Unit
 ) {
     ElevatedCard(
@@ -298,10 +372,12 @@ fun SearchCard(
                 label = { Text("Location") },
                 placeholder = { Text("Enter city name") },
                 leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Outlined.Place,
-                        contentDescription = "Location"
-                    )
+                    IconButton(onClick = onLocationClick) {
+                        Icon(
+                            imageVector = Icons.Outlined.Place,
+                            contentDescription = "Location Permission"
+                        )
+                    }
                 },
                 singleLine = true,
                 shape = RoundedCornerShape(14.dp),
