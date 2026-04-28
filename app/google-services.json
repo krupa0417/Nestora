@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "333977878864",
+    "project_id": "nestora-d1561",
+    "storage_bucket": "nestora-d1561.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:333977878864:android:79e87b87a224d14ed4ac55",
+        "android_client_info": {
+          "package_name": "com.example.nestora"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCeAhLD-EaKfLjAI43W0pyKBZdN7cg0w0g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
