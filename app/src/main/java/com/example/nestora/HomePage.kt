@@ -47,6 +47,13 @@ import androidx.core.content.ContextCompat
 // Firebase Firestore
 import com.google.firebase.firestore.FirebaseFirestore
 
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.rememberDatePickerState
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+
 data class Hotel(
     val name: String = "",
     val location: String = "",
@@ -94,27 +101,7 @@ fun HomePage(navController: NavHostController) {
         }
     }
 
-    fun uploadSampleHotelsToFirestore() {
-        val hotels = listOf(
-            Hotel("Grand Palace Hotel", "London", "£120/night", "4.5"),
-            Hotel("Blue Sky Resort", "Manchester", "£95/night", "4.2"),
-            Hotel("City Comfort Inn", "Birmingham", "£80/night", "4.0"),
-            Hotel("Nestora Luxury Stay", "Liverpool", "£150/night", "4.8"),
-            Hotel("Sunset Suites", "Leeds", "£110/night", "4.3"),
-            Hotel("Royal Garden Hotel", "Middlesbrough", "£75/night", "4.1"),
-            Hotel("Ocean View Stay", "Brighton", "£130/night", "4.6"),
-            Hotel("Castle View Hotel", "Edinburgh", "£140/night", "4.7"),
-            Hotel("Riverside Inn", "Glasgow", "£100/night", "4.2"),
-            Hotel("Central Comfort Hotel", "Newcastle", "£90/night", "4.4")
-        )
 
-        hotels.forEach { hotel ->
-            db.collection("hotels")
-                .add(hotel)
-        }
-
-        message = "Sample hotels uploaded to Firestore."
-    }
 
     fun searchHotelsFromFirestore() {
         filteredHotels.clear()
@@ -255,19 +242,7 @@ fun HomePage(navController: NavHostController) {
                 )
             }
 
-            item {
-                Button(
-                    onClick = {
-                        uploadSampleHotelsToFirestore()
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF2E7D32)
-                    )
-                ) {
-                    Text("Upload Sample Hotels to Firestore")
-                }
-            }
+
 
             if (isLoading) {
                 item {
@@ -385,6 +360,7 @@ fun FeatureBadge(text: String) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchCard(
     location: String,
@@ -396,6 +372,67 @@ fun SearchCard(
     onLocationClick: () -> Unit,
     onSearchClick: () -> Unit
 ) {
+    var showCheckInPicker by remember { mutableStateOf(false) }
+    var showCheckOutPicker by remember { mutableStateOf(false) }
+
+    val checkInDatePickerState = rememberDatePickerState()
+    val checkOutDatePickerState = rememberDatePickerState()
+
+    fun formatDate(milliseconds: Long): String {
+        val formatter = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+        return formatter.format(Date(milliseconds))
+    }
+
+    if (showCheckInPicker) {
+        DatePickerDialog(
+            onDismissRequest = { showCheckInPicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        checkInDatePickerState.selectedDateMillis?.let {
+                            onCheckInChange(formatDate(it))
+                        }
+                        showCheckInPicker = false
+                    }
+                ) {
+                    Text("Select")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCheckInPicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = checkInDatePickerState)
+        }
+    }
+
+    if (showCheckOutPicker) {
+        DatePickerDialog(
+            onDismissRequest = { showCheckOutPicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        checkOutDatePickerState.selectedDateMillis?.let {
+                            onCheckOutChange(formatDate(it))
+                        }
+                        showCheckOutPicker = false
+                    }
+                ) {
+                    Text("Select")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCheckOutPicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = checkOutDatePickerState)
+        }
+    }
+
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
@@ -440,15 +477,18 @@ fun SearchCard(
 
             OutlinedTextField(
                 value = checkIn,
-                onValueChange = onCheckInChange,
+                onValueChange = {},
                 modifier = Modifier.fillMaxWidth(),
+                readOnly = true,
                 label = { Text("Check-in Date") },
-                placeholder = { Text("DD/MM/YYYY") },
+                placeholder = { Text("Select check-in date") },
                 leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Outlined.CalendarMonth,
-                        contentDescription = "Check-in"
-                    )
+                    IconButton(onClick = { showCheckInPicker = true }) {
+                        Icon(
+                            imageVector = Icons.Outlined.CalendarMonth,
+                            contentDescription = "Select Check-in Date"
+                        )
+                    }
                 },
                 singleLine = true,
                 shape = RoundedCornerShape(14.dp),
@@ -462,15 +502,18 @@ fun SearchCard(
 
             OutlinedTextField(
                 value = checkOut,
-                onValueChange = onCheckOutChange,
+                onValueChange = {},
                 modifier = Modifier.fillMaxWidth(),
+                readOnly = true,
                 label = { Text("Check-out Date") },
-                placeholder = { Text("DD/MM/YYYY") },
+                placeholder = { Text("Select check-out date") },
                 leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Outlined.CalendarMonth,
-                        contentDescription = "Check-out"
-                    )
+                    IconButton(onClick = { showCheckOutPicker = true }) {
+                        Icon(
+                            imageVector = Icons.Outlined.CalendarMonth,
+                            contentDescription = "Select Check-out Date"
+                        )
+                    }
                 },
                 singleLine = true,
                 shape = RoundedCornerShape(14.dp),
