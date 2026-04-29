@@ -1,21 +1,29 @@
 package com.example.nestora
 
+// Android
+import android.Manifest
+import android.content.pm.PackageManager
 import android.net.Uri
+
+// Compose Core
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+
+// Layout
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+
+// Material Icons
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.LocationOn
@@ -23,47 +31,27 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Place
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
+
+// Material3
+import androidx.compose.material3.*
 import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.TopAppBar
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+
+// Navigation
 import androidx.navigation.NavHostController
-import android.Manifest
-import android.content.pm.PackageManager
+
+// Permissions
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.TextButton
-import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 
+// Firebase Firestore
+import com.google.firebase.firestore.FirebaseFirestore
+
 data class Hotel(
-    val name: String,
-    val location: String,
-    val price: String,
-    val rating: String
+    val name: String = "",
+    val location: String = "",
+    val price: String = "",
+    val rating: String = ""
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,21 +59,25 @@ data class Hotel(
 fun HomePage(navController: NavHostController) {
 
     val context = LocalContext.current
+    val db = FirebaseFirestore.getInstance()
 
     var location by remember { mutableStateOf("") }
     var checkIn by remember { mutableStateOf("") }
     var checkOut by remember { mutableStateOf("") }
     var message by remember { mutableStateOf("") }
     var showPermissionDialog by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+
+    val filteredHotels = remember { mutableStateListOf<Hotel>() }
 
     val locationPermissionLauncher =
         rememberLauncherForActivityResult(
             contract = ActivityResultContracts.RequestPermission()
         ) { isGranted ->
-            if (isGranted) {
-                message = "Location permission granted. You can now use location features."
+            message = if (isGranted) {
+                "Location permission granted."
             } else {
-                message = "Location permission denied."
+                "Location permission denied."
             }
         }
 
@@ -100,6 +92,65 @@ fun HomePage(navController: NavHostController) {
         } else {
             showPermissionDialog = true
         }
+    }
+
+    fun uploadSampleHotelsToFirestore() {
+        val hotels = listOf(
+            Hotel("Grand Palace Hotel", "London", "£120/night", "4.5"),
+            Hotel("Blue Sky Resort", "Manchester", "£95/night", "4.2"),
+            Hotel("City Comfort Inn", "Birmingham", "£80/night", "4.0"),
+            Hotel("Nestora Luxury Stay", "Liverpool", "£150/night", "4.8"),
+            Hotel("Sunset Suites", "Leeds", "£110/night", "4.3"),
+            Hotel("Royal Garden Hotel", "Middlesbrough", "£75/night", "4.1"),
+            Hotel("Ocean View Stay", "Brighton", "£130/night", "4.6"),
+            Hotel("Castle View Hotel", "Edinburgh", "£140/night", "4.7"),
+            Hotel("Riverside Inn", "Glasgow", "£100/night", "4.2"),
+            Hotel("Central Comfort Hotel", "Newcastle", "£90/night", "4.4")
+        )
+
+        hotels.forEach { hotel ->
+            db.collection("hotels")
+                .add(hotel)
+        }
+
+        message = "Sample hotels uploaded to Firestore."
+    }
+
+    fun searchHotelsFromFirestore() {
+        filteredHotels.clear()
+
+        if (location.isBlank()) {
+            message = "Please enter a location to search."
+            return
+        }
+
+        isLoading = true
+
+        db.collection("hotels")
+            .get()
+            .addOnSuccessListener { result ->
+                isLoading = false
+
+                val hotels = result.documents.mapNotNull { document ->
+                    document.toObject(Hotel::class.java)
+                }
+
+                val results = hotels.filter {
+                    it.location.contains(location, ignoreCase = true)
+                }
+
+                filteredHotels.addAll(results)
+
+                message = if (results.isEmpty()) {
+                    "No hotels found in $location"
+                } else {
+                    "Showing hotels in $location"
+                }
+            }
+            .addOnFailureListener { exception ->
+                isLoading = false
+                message = exception.message ?: "Failed to load hotels."
+            }
     }
 
     if (showPermissionDialog) {
@@ -140,16 +191,6 @@ fun HomePage(navController: NavHostController) {
             }
         )
     }
-
-    val allHotels = listOf(
-        Hotel("Grand Palace Hotel", "London", "£120/night", "4.5"),
-        Hotel("Blue Sky Resort", "Manchester", "£95/night", "4.2"),
-        Hotel("City Comfort Inn", "London", "£80/night", "4.0"),
-        Hotel("Nestora Luxury Stay", "Birmingham", "£150/night", "4.8"),
-        Hotel("Sunset Suites", "Liverpool", "£110/night", "4.3")
-    )
-
-    val filteredHotels = remember { mutableStateListOf<Hotel>() }
 
     Scaffold(
         containerColor = Color(0xFFF4F8FF),
@@ -209,25 +250,33 @@ fun HomePage(navController: NavHostController) {
                         requestLocationPermission()
                     },
                     onSearchClick = {
-                        filteredHotels.clear()
-
-                        if (location.isBlank()) {
-                            message = "Please enter a location to search."
-                        } else {
-                            val results = allHotels.filter {
-                                it.location.contains(location, ignoreCase = true)
-                            }
-
-                            filteredHotels.addAll(results)
-
-                            message = if (results.isEmpty()) {
-                                "No hotels found in $location"
-                            } else {
-                                "Showing hotels in $location"
-                            }
-                        }
+                        searchHotelsFromFirestore()
                     }
                 )
+            }
+
+            item {
+                Button(
+                    onClick = {
+                        uploadSampleHotelsToFirestore()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF2E7D32)
+                    )
+                ) {
+                    Text("Upload Sample Hotels to Firestore")
+                }
+            }
+
+            if (isLoading) {
+                item {
+                    Text(
+                        text = "Loading hotels...",
+                        color = Color(0xFF546E7A),
+                        fontSize = 14.sp
+                    )
+                }
             }
 
             if (message.isNotEmpty()) {
