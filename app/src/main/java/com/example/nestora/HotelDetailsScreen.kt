@@ -9,26 +9,37 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.Icon
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -39,6 +50,75 @@ fun HotelDetailsScreen(
     hotelPrice: String,
     hotelRating: String
 ) {
+    val db = FirebaseFirestore.getInstance()
+    val auth = FirebaseAuth.getInstance()
+
+    var message by remember { mutableStateOf("") }
+    var showDialog by remember { mutableStateOf(false) }
+    var isBooking by remember { mutableStateOf(false) }
+
+    fun getCurrentDateTime(): String {
+        val formatter = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+        return formatter.format(Date())
+    }
+
+    fun confirmBooking() {
+        isBooking = true
+
+        val userId = auth.currentUser?.uid ?: "Guest User"
+        val userEmail = auth.currentUser?.email ?: "No Email"
+
+        val bookingData = hashMapOf(
+            "userId" to userId,
+            "userEmail" to userEmail,
+            "hotelName" to hotelName,
+            "hotelLocation" to hotelLocation,
+            "hotelPrice" to hotelPrice,
+            "hotelRating" to hotelRating,
+            "bookingStatus" to "Confirmed",
+            "bookingDateTime" to getCurrentDateTime()
+        )
+
+        db.collection("bookingHistory")
+            .add(bookingData)
+            .addOnSuccessListener {
+                isBooking = false
+                message = "Booking confirmed successfully."
+                showDialog = true
+            }
+            .addOnFailureListener { exception ->
+                isBooking = false
+                message = exception.message ?: "Booking failed. Please try again."
+                showDialog = true
+            }
+    }
+
+    if (showDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showDialog = false
+            },
+            title = {
+                Text("Booking Status")
+            },
+            text = {
+                Text(message)
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDialog = false
+                        if (message.contains("confirmed", ignoreCase = true)) {
+                            navController.popBackStack()
+                        }
+                    }
+                ) {
+                    Text("OK")
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -132,13 +212,16 @@ fun HotelDetailsScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             Button(
-                onClick = { },
+                onClick = {
+                    confirmBooking()
+                },
+                enabled = !isBooking,
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFF1565C0)
                 )
             ) {
-                Text("Confirm Booking")
+                Text(if (isBooking) "Confirming..." else "Confirm Booking")
             }
         }
     }
