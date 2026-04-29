@@ -1,29 +1,15 @@
 package com.example.nestora
 
-// Android
 import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
-
-// Compose Core
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-
-// Layout
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-
-// Material Icons
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.LocationOn
@@ -31,25 +17,19 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.Place
-
-// Material3
 import androidx.compose.material3.*
-import androidx.compose.material3.TextFieldDefaults
-
-// Navigation
-import androidx.navigation.NavHostController
-
-// Permissions
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-
-// Firebase Firestore
+import androidx.navigation.NavHostController
 import com.google.firebase.firestore.FirebaseFirestore
-
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.rememberDatePickerState
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -101,13 +81,16 @@ fun HomePage(navController: NavHostController) {
         }
     }
 
-
-
     fun searchHotelsFromFirestore() {
         filteredHotels.clear()
 
         if (location.isBlank()) {
             message = "Please enter a location to search."
+            return
+        }
+
+        if (checkIn.isBlank() || checkOut.isBlank()) {
+            message = "Please select check-in and check-out dates."
             return
         }
 
@@ -238,11 +221,12 @@ fun HomePage(navController: NavHostController) {
                     },
                     onSearchClick = {
                         searchHotelsFromFirestore()
+                    },
+                    onMessageChange = {
+                        message = it
                     }
                 )
             }
-
-
 
             if (isLoading) {
                 item {
@@ -370,17 +354,46 @@ fun SearchCard(
     checkOut: String,
     onCheckOutChange: (String) -> Unit,
     onLocationClick: () -> Unit,
-    onSearchClick: () -> Unit
+    onSearchClick: () -> Unit,
+    onMessageChange: (String) -> Unit
 ) {
     var showCheckInPicker by remember { mutableStateOf(false) }
     var showCheckOutPicker by remember { mutableStateOf(false) }
 
-    val checkInDatePickerState = rememberDatePickerState()
-    val checkOutDatePickerState = rememberDatePickerState()
+    val todayMillis = remember {
+        System.currentTimeMillis()
+    }
+
+    val checkInDatePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = todayMillis,
+        selectableDates = object : SelectableDates {
+            override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                return utcTimeMillis >= todayMillis
+            }
+        }
+    )
+
+    val checkOutDatePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = todayMillis,
+        selectableDates = object : SelectableDates {
+            override fun isSelectableDate(utcTimeMillis: Long): Boolean {
+                return utcTimeMillis >= todayMillis
+            }
+        }
+    )
 
     fun formatDate(milliseconds: Long): String {
         val formatter = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
         return formatter.format(Date(milliseconds))
+    }
+
+    fun parseDate(dateText: String): Long? {
+        return try {
+            val formatter = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+            formatter.parse(dateText)?.time
+        } catch (e: Exception) {
+            null
+        }
     }
 
     if (showCheckInPicker) {
@@ -389,8 +402,10 @@ fun SearchCard(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        checkInDatePickerState.selectedDateMillis?.let {
-                            onCheckInChange(formatDate(it))
+                        checkInDatePickerState.selectedDateMillis?.let { selectedDate ->
+                            onCheckInChange(formatDate(selectedDate))
+                            onCheckOutChange("")
+                            onMessageChange("Check-in date selected. Please select check-out date.")
                         }
                         showCheckInPicker = false
                     }
@@ -414,9 +429,18 @@ fun SearchCard(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        checkOutDatePickerState.selectedDateMillis?.let {
-                            onCheckOutChange(formatDate(it))
+                        val selectedCheckout = checkOutDatePickerState.selectedDateMillis
+                        val selectedCheckIn = parseDate(checkIn)
+
+                        if (checkIn.isBlank()) {
+                            onMessageChange("Please select check-in date first.")
+                        } else if (selectedCheckout != null && selectedCheckIn != null && selectedCheckout <= selectedCheckIn) {
+                            onMessageChange("Check-out date must be after check-in date.")
+                        } else if (selectedCheckout != null) {
+                            onCheckOutChange(formatDate(selectedCheckout))
+                            onMessageChange("Check-out date selected.")
                         }
+
                         showCheckOutPicker = false
                     }
                 ) {
